@@ -1,28 +1,50 @@
-A = importdata('OTC.csv');
-data = A.data;
+% % for OTC data
+% A = importdata('OTC.csv');
+% data = A.data;
+% 
+% A = importdata('OTC_RCDraws_forMatlab.csv');
+% nu = A.data(:,3:end);
+% 
+% A = importdata('OTC_Demographics_forMatlab.csv');
+% demogr = A.data(:,3:end);
+% 
+% 
+% cdid    = data(:,3);
+% share   = data(:,5);
+% outshr  = data(:,6);
+% x1      = data(:,7:19);
+% IV      = data(:,20:end);
+% 
+% x2      = [ones(size(x1,1),1) x1(:,[1 3])];
+% Z       = [x1(:,2:end) IV];
 
-A = importdata('OTC_RCDraws_forMatlab.csv');
-nu = A.data(:,3:end);
+load('BLP_data.mat');
 
-A = importdata('OTC_Demographics_forMatlab.csv');
-demogr = A.data(:,3:end);
-
-
-cdid    = data(:,3);
-share   = data(:,5);
-outshr  = data(:,6);
-x1      = data(:,7:19);
-IV      = data(:,20:end);
-
-x2      = [ones(size(x1,1),1) x1(:,[1 3])];
-Z       = [x1(:,2:end) IV];
+x1 = [const hpwt air mpg space log(price)];
+x2 = [const hpwt air mpg space];
 
 n.k1 = size(x1,2);
 n.k2 = size(x2,2);
 n.obs = size(x1,1);
 n.cdid = numel(unique(cdid));
-n.draws = size(nu,2)/n.k2;
-n.demogr = size(demogr,2)/n.draws;
+
+% instruments
+firmcdid    = firmid*max(cdid) + cdid;
+charid      = kron((1:n.k1)', ones(n.obs, 1));
+
+sumfirm     = accumarray([repmat(firmcdid, n.k1, 1) charid], x1(:));
+sumcdid     = accumarray([repmat(cdid, n.k1, 1) charid], x1(:));
+
+ivfirm      = sumfirm(firmcdid,:) - x1;
+ivcdid      = sumcdid(cdid,:) - x1;
+
+Z           = [x1(:, 1:end-1) ivfirm(:, 1:end-1) ivcdid(:, 1:end-1)];
+
+% random draws
+n.draws     = 100;
+n.demogr    = 0;
+nu          = normrnd(0,1,[n.cdid n.draws*n.k2]);
+demogr      = zeros(n.cdid, 0);
 
 rng('default');
 
@@ -63,9 +85,9 @@ drawidrep   = kron((1:n.draws)',ones(n.obs,1));
 cdidmap     = cdidrep + (drawidrep-1)*n.cdid;
 x2rep       = repmat(x2, n.draws, 1);
 
-SigmaConstraint = zeros(size(x2,2));
-SigmaConstraint(3,3) = 1;
-PiConstraint = [false;true;false];
+SigmaConstraint = eye(size(x2,2))>0;
+% SigmaConstraint(3,3) = 1;
+PiConstraint = [];
 n.Sigma = sum(SigmaConstraint(:));
 n.Pi = sum(PiConstraint(:));
 

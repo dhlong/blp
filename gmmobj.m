@@ -14,9 +14,9 @@ Pi(data.PiConstraint>0) = theta(n.Sigma+1:n.Sigma+n.Pi);
 
 delta = log(data.share) - log(data.outshr);
 
-if exist('delta.mat','file')
-    load delta.mat;
-end
+% if exist('delta.mat','file')
+%     load delta.mat;
+% end
 
 toler = 1e-8;
 converged = false;
@@ -25,7 +25,8 @@ count = 0;
 while ~converged
     delta_0 = delta;
     
-    beta_i = data.nu*Sigma' + data.demogr*Pi';
+%     beta_i = data.nu*Sigma' + data.demogr*Pi';
+    beta_i = data.nu*Sigma';
     beta_i = reshape(beta_i, n.cdid, n.draws, n.k2);
     beta_i = beta_i(data.cdid, :, :);
     
