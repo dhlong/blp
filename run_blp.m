@@ -101,6 +101,11 @@ data = v2struct(x1, x2, Z, ZZ, XZ, Gamma, share, outshr, SigmaConstraint, PiCons
 Sigma = 0*ones([n.Sigma 1]);
 Pi = 0*ones([n.Pi 1]);
 
+if exist('delta.mat','file')
+    delete delta.mat;
+end
+
+
 options = optimset(...
     'Display','iter', ...
     'MaxFunEvals', 10000);
