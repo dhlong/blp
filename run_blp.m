@@ -20,15 +20,21 @@
 
 load('BLP_data.mat');
 
-x1 = [const hpwt air mpg space log(price)];
-x2 = [const hpwt air mpg space];
+label1 = 'const hpwt air mpd space';
+label2 = 'const hpwt air mpd space';
+label3 = 'const ln(hpwt) air ln(mpg) ln(space) trend';
+
+x1 = [const hpwt air mpd space];
+x2 = [const hpwt air mpd space];
+x3 = [const log(hpwt) air log(mpg) log(space) cdid-1];
 
 n.k1 = size(x1,2);
 n.k2 = size(x2,2);
+n.k3 = size(x3,2);
 n.obs = size(x1,1);
 n.cdid = numel(unique(cdid));
 
-% instruments
+% demand instruments
 firmcdid    = firmid*max(cdid) + cdid;
 charid      = kron((1:n.k1)', ones(n.obs, 1));
 
@@ -38,7 +44,22 @@ sumcdid     = accumarray([repmat(cdid, n.k1, 1) charid], x1(:));
 ivfirm      = sumfirm(firmcdid,:) - x1;
 ivcdid      = sumcdid(cdid,:) - x1;
 
-Z           = [x1(:, 1:end-1) ivfirm(:, 1:end-1) ivcdid(:, 1:end-1)];
+Z_d         = [x1 ivfirm(:, 1:end-1) ivcdid(:, 1:end-1)]; % 
+
+% cost instruments
+charid      = kron((1:n.k3)', ones(n.obs, 1));
+
+sumfirm     = accumarray([repmat(firmcdid, n.k3, 1) charid], x3(:));
+sumcdid     = accumarray([repmat(cdid, n.k3, 1) charid], x3(:));
+
+ivfirm      = sumfirm(firmcdid,:) - x3;
+ivcdid      = sumcdid(cdid,:) - x3;
+
+Z_s         = [x3 mpd ivfirm ivcdid]; %
+
+% combine both sets of instruments
+Z = blkdiag(Z_d, Z_s);
+X = blkdiag(x1, x3);
 
 % random draws
 n.draws     = 100;
@@ -72,7 +93,7 @@ countf = 0;
 % Z = [x1(:,1:end-1) iv1 iv2];
 
 ZZ = Z'*Z;
-XZ = x1'*Z;
+XZ = X'*Z;
 XZ_ZZ = XZ/ZZ;
 Gamma = (XZ_ZZ*XZ')\XZ_ZZ;
 
@@ -94,11 +115,13 @@ n.Pi = sum(PiConstraint(:));
 
 dvcdid = bsxfun(@eq, sparse(sort(unique(cdid))), cdid');
 
-data = v2struct(x1, x2, Z, ZZ, XZ, Gamma, share, outshr, SigmaConstraint, PiConstraint, ...
-    cdid, cdidrep, drawidrep, cdidmap, dvcdid, nu, demogr, cdidmap, n);
+data = v2struct(x1, x2, x3, X, Z, ZZ, XZ, Gamma, share, outshr, SigmaConstraint, PiConstraint, ...
+    cdid, cdidrep, firmid, drawidrep, cdidmap, dvcdid, nu, demogr, cdidmap, price, n);
 
 
-Sigma = 0*ones([n.Sigma 1]);
+% Sigma = 0*ones([n.Sigma 1]);
+Sigma = log([3.6; 4.6; 1.8; 1.0; 2.0]);
+alpha = -0.3;
 Pi = 0*ones([n.Pi 1]);
 
 if exist('delta.mat','file')
@@ -109,6 +132,13 @@ end
 options = optimset(...
     'Display','iter', ...
     'MaxFunEvals', 10000);
-theta = fminunc(@(theta) gmmobj(theta, data, n), [Sigma;Pi], options);
+theta = fminunc(@(theta) gmmobj(theta, data, n), [Sigma;Pi;alpha], options);
+beta = get_beta(theta, data, n);
+
+%% 
+printmat([beta(1:n.k1); theta(end)], 'Demand mean', [label1 ' price'], 'beta');
+printmat(theta(1:end-1), 'Demand variation', label2, 'Sigma');
+printmat(beta(n.k1+1:n.k1+n.k3), 'Supply', label3, 'iota');
+
 
 

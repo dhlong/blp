@@ -8,6 +8,7 @@ global countf;
 
 Sigma = zeros(size(data.SigmaConstraint));
 Sigma(data.SigmaConstraint>0) = theta(1:n.Sigma);
+alpha = theta(end);
 
 Pi = zeros(size(data.PiConstraint));
 Pi(data.PiConstraint>0) = theta(n.Sigma+1:n.Sigma+n.Pi);
@@ -60,19 +61,25 @@ while ~converged
 end
 
 save delta.mat delta
-%
-% c = zeros(size(data.share));
-% for cdid = unique(data.cdid)
-%     for firm = unique(data.firmid(filter))
-%         filter = (cdid == data.cdid) & (firm == data.firmid);
-%         ss = s(filter,:);
-%         vv = data.nu(filter,:);
-%         Delta_price = -(ss.*(alpha + vv*Sigma(:,1)))'*ss + diag(sum(ss.*(alpha + vv*Sigma(:,1)),2));
-%         c(filter) = p - Delta_price\data.share(filter);
-%     end
-% end
-%
-%
+
+c = zeros(size(data.share));
+for cdid = unique(data.cdid)'
+    for firm = unique(data.firmid)'
+        filter  = (cdid == data.cdid) & (firm == data.firmid);
+        p       = data.price(filter);
+        s_jt    = data.share(filter, :);
+        s_ijt   = s(filter,:);
+        
+        % log specification
+        % Delta   = alpha*bsxfun(@ldivide, p', diag(s_jt) - s_ijt*s_ijt'/n.draws);
+        
+        % linear specification
+        Delta   = alpha*(diag(s_jt) - s_ijt*s_ijt'/n.draws);
+        c(filter) = p - Delta\s_jt;
+    end
+end
+
+
 % beta = data.XOXiXO*[delta;ln(c)];
 %
 % beta_d = beta(1:n.beta_d);
@@ -85,10 +92,18 @@ save delta.mat delta
 
 
 % demand first
-beta = data.Gamma*(data.Z'*delta);
-ksi = delta - data.x1*beta;
-ksi_Z = ksi'*data.Z;
-G = ksi_Z/data.ZZ*ksi_Z';
+% beta = data.Gamma*(data.Z'*delta);
+% ksi = delta - data.x1*beta;
+% ksi_Z = ksi'*data.Z;
+% G = ksi_Z/data.ZZ*ksi_Z';
+
+% both demand and supply
+% b = [delta - alpha*log(data.price); log(c)]; % log
+b = [delta - alpha*data.price; log(c)]; % linear
+beta = data.Gamma*(data.Z'*b);
+residuals = b - data.X*beta;
+residuals_Z = residuals'*data.Z;
+G = residuals_Z/data.ZZ*residuals_Z';
 
 if countf == 50
     display(beta);
